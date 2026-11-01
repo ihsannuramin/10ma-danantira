@@ -11,6 +11,9 @@ import { EmptyState } from "@/components/ui/state";
 import { Page } from "@/components/layout/top-bar";
 import { requirePlayer } from "@/data/auth";
 import { getMyMabars } from "@/data/mabar";
+import { getPendingConfirmations, getPlayerStats } from "@/data/match";
+import { teamName } from "@/components/match/score-board";
+import { formatScoreLine } from "@/domain/match/scoring";
 
 export const metadata: Metadata = { title: "Home" };
 
@@ -29,6 +32,10 @@ export default function HomePage() {
       <div className="flex flex-col gap-6 pt-4">
         <Suspense fallback={<GreetingSkeleton />}>
           <Greeting />
+        </Suspense>
+
+        <Suspense fallback={null}>
+          <PendingConfirmations />
         </Suspense>
 
         <Link href="/mabar" className="block rounded-lg focus-visible:outline-offset-4">
@@ -140,10 +147,42 @@ async function UpcomingMatches() {
 
 async function HomeRating() {
   const player = await requirePlayer();
+  const stats = await getPlayerStats(player.id);
   return (
     <Link href="/stats" className="block rounded-lg">
-      <RatingCard player={player} compact />
+      <RatingCard player={player} stats={stats} compact />
     </Link>
+  );
+}
+
+/** Results waiting on this player come first: the rating loop stalls without them. */
+async function PendingConfirmations() {
+  const player = await requirePlayer();
+  const pending = await getPendingConfirmations(player.id);
+  if (pending.length === 0) return null;
+  return (
+    <section aria-labelledby="confirm-heading" className="flex flex-col gap-2 rounded-lg border-2 border-ink bg-white p-4 shadow-brutal">
+      <h2 id="confirm-heading" className="text-h3">
+        {pending.length} hasil menunggu konfirmasi kamu
+      </h2>
+      <ul className="flex flex-col divide-y divide-line">
+        {pending.map((m) => (
+          <li key={m.id}>
+            <Link href={`/mabar/${m.mabarId}/match/${m.id}`} className="flex min-h-14 items-center gap-3 py-2">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-body-sm font-semibold">
+                  {teamName(m.teamA)} vs {teamName(m.teamB)}
+                </span>
+                <span className="block truncate text-caption text-muted">
+                  {m.mabarTitle} · {formatScoreLine(m.sets)}
+                </span>
+              </span>
+              <span className="inline-flex h-10 items-center rounded-md bg-lime px-4 text-body-sm font-bold">Cek</span>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 

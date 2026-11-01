@@ -61,6 +61,9 @@ export async function createMabar(_prev: unknown, formData: FormData): Promise<A
     p_level_max: input.levelMax,
     p_cost_per_player: input.cost,
     p_description: input.description,
+    p_max_players: input.maxPlayers,
+    p_scoring_format: input.scoringFormat,
+    p_deuce_rule: input.deuceRule,
   });
   if (error) return { ok: false, error: fromSupabaseError(error, "createMabar") };
 

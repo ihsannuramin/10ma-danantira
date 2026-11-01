@@ -8,7 +8,10 @@ export const MATCH_TYPES = ["CASUAL", "COMPETITIVE"] as const;
 export const MABAR_STATUSES = ["OPEN", "FULL", "UPCOMING", "LIVE", "COMPLETED", "CANCELLED", "EXPIRED"] as const;
 export const STORED_MABAR_STATUSES = ["OPEN", "CANCELLED", "COMPLETED"] as const;
 
-export const MAX_PLAYERS = { SINGLES: 2, DOUBLES: 4 } as const;
+// Players on court for one match; also the minimum for a mabar to go LIVE.
+export const MIN_PLAYERS = { SINGLES: 2, DOUBLES: 4 } as const;
+// One court, players rotate through matches.
+export const MAX_SESSION_PLAYERS = 8;
 
 export const FORMAT_LABEL = { SINGLES: "Singles", DOUBLES: "Doubles" } as const;
 export const MATCH_TYPE_LABEL = { CASUAL: "Casual", COMPETITIVE: "Competitive" } as const;

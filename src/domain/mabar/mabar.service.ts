@@ -1,18 +1,19 @@
 import { isRatingInRange } from "@/domain/rating/rating.service";
+import { MIN_PLAYERS } from "./mabar.constants";
 import type { JoinCheckInput, JoinCheckResult, MabarStatus, MabarStatusInput } from "./mabar.types";
 
 /**
  * Mirrors the SQL function public.mabar_effective_status. Keep both in sync.
- * A mabar that reaches its start time with every slot taken is LIVE until a
- * result completes it; one that starts short of players has EXPIRED.
+ * Once started, a mabar with enough players for one match is LIVE (players
+ * rotate through matches) until the organizer ends it; one that starts short
+ * of players has EXPIRED.
  */
 export function getEffectiveStatus(mabar: MabarStatusInput, now: Date = new Date()): MabarStatus {
   if (mabar.status === "CANCELLED") return "CANCELLED";
   if (mabar.status === "COMPLETED") return "COMPLETED";
 
-  const isFull = mabar.participantCount >= mabar.maxPlayers;
-  if (now >= mabar.startsAt) return isFull ? "LIVE" : "EXPIRED";
-  return isFull ? "FULL" : "OPEN";
+  if (now >= mabar.startsAt) return mabar.participantCount >= MIN_PLAYERS[mabar.format] ? "LIVE" : "EXPIRED";
+  return mabar.participantCount >= mabar.maxPlayers ? "FULL" : "OPEN";
 }
 
 /**

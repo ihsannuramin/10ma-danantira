@@ -8,8 +8,11 @@ import {
   MABAR_FORMATS,
   MATCH_TYPES,
   MAX_DURATION_HOURS,
+  MAX_SESSION_PLAYERS,
+  MIN_PLAYERS,
   TITLE_MAX,
 } from "./mabar.constants";
+import { DEUCE_RULES, SCORING_FORMATS } from "@/domain/match/match.constants";
 import { toWibDate } from "./schedule";
 
 const optionalText = (max: number, message: string) =>
@@ -43,6 +46,9 @@ export function createMabarSchema(now: Date = new Date()) {
       title: optionalText(TITLE_MAX, `Nama mabar maksimal ${TITLE_MAX} karakter.`),
       format: z.enum(MABAR_FORMATS, { message: "Pilih format." }),
       matchType: z.enum(MATCH_TYPES, { message: "Pilih tipe match." }),
+      maxPlayers: z.coerce.number({ message: "Pilih jumlah pemain." }).int().max(MAX_SESSION_PLAYERS, `Maksimal ${MAX_SESSION_PLAYERS} pemain.`),
+      scoringFormat: z.enum(SCORING_FORMATS, { message: "Pilih format skor." }),
+      deuceRule: z.enum(DEUCE_RULES, { message: "Pilih aturan deuce." }),
       date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pilih tanggal."),
       startTime: z.string().regex(/^\d{2}:\d{2}$/, "Pilih jam mulai."),
       endTime: z.string().regex(/^\d{2}:\d{2}$/, "Pilih jam selesai."),
@@ -57,6 +63,9 @@ export function createMabarSchema(now: Date = new Date()) {
       description: optionalText(DESCRIPTION_MAX, `Deskripsi maksimal ${DESCRIPTION_MAX} karakter.`),
     })
     .superRefine((v, ctx) => {
+      if (v.maxPlayers < MIN_PLAYERS[v.format]) {
+        ctx.addIssue({ code: "custom", path: ["maxPlayers"], message: `Minimal ${MIN_PLAYERS[v.format]} pemain untuk format ini.` });
+      }
       if (v.levelMin > v.levelMax) {
         ctx.addIssue({ code: "custom", path: ["levelMax"], message: "Level maksimal harus ≥ level minimal." });
       }
@@ -76,6 +85,9 @@ export function createMabarSchema(now: Date = new Date()) {
       title: v.title,
       format: v.format,
       matchType: v.matchType,
+      maxPlayers: v.maxPlayers,
+      scoringFormat: v.scoringFormat,
+      deuceRule: v.deuceRule,
       startsAt: toWibDate(v.date, v.startTime),
       endsAt: toWibDate(v.date, v.endTime),
       levelMin: v.levelMin,

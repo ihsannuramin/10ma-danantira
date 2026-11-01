@@ -49,7 +49,20 @@ export function JoinPanel({ mabarId, status, isOrganizer, isParticipant, joinBlo
   }
 
   let primary: React.ReactNode;
-  if (isOrganizer && beforeStart) {
+  if ((joined || isOrganizer) && status === "LIVE") {
+    // The player is on court; score entry and results arrive with live scoring.
+    primary = (
+      <div className="flex w-full flex-col">
+        <p className="flex items-center gap-2 text-body-sm font-bold">
+          <span className="size-2 animate-pulse rounded-full bg-danger" aria-hidden />
+          Match sedang berlangsung
+        </p>
+        <p className="text-caption text-muted">
+          {isOrganizer ? "Mulai match dan input skor di bagian Matches." : "Semangat mainnya!"}
+        </p>
+      </div>
+    );
+  } else if (isOrganizer && beforeStart) {
     primary = (
       <Button variant="danger" fullWidth onClick={() => setConfirm("cancel")}>
         Batalkan Mabar

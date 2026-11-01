@@ -3,6 +3,7 @@ import { LEVEL_MIN_RATING, TENNIS_LEVELS } from "@/domain/rating/rating.constant
 import type { TennisLevel } from "@/domain/rating/rating.types";
 import { MABAR_FORMATS, MATCH_TYPES, SEARCH_PAGE_SIZE, TIME_SLOTS } from "@/domain/mabar/mabar.constants";
 import type { MabarFormat, MabarStatus, MatchType, StoredMabarStatus } from "@/domain/mabar/mabar.types";
+import type { DeuceRule, ScoringFormat } from "@/domain/match/match.constants";
 import { dateFilterRange } from "@/domain/mabar/schedule";
 import { createClient } from "@/lib/supabase/server";
 
@@ -27,6 +28,8 @@ export type MabarListing = {
   description: string | null;
   status: StoredMabarStatus;
   effectiveStatus: MabarStatus;
+  scoringFormat: ScoringFormat;
+  deuceRule: DeuceRule;
 };
 
 type ListingRow = {
@@ -50,6 +53,8 @@ type ListingRow = {
   description: string | null;
   status: StoredMabarStatus;
   effective_status: MabarStatus;
+  scoring_format: ScoringFormat;
+  deuce_rule: DeuceRule;
 };
 
 function toListing(row: ListingRow): MabarListing {
@@ -74,6 +79,8 @@ function toListing(row: ListingRow): MabarListing {
     description: row.description,
     status: row.status,
     effectiveStatus: row.effective_status,
+    scoringFormat: row.scoring_format,
+    deuceRule: row.deuce_rule,
   };
 }
 
@@ -204,9 +211,14 @@ export async function getMabarDetail(id: string): Promise<MabarDetail | null> {
   if (participants.error) throw new Error(`Failed to load participants: ${participants.error.message}`);
   if (!listing.data) return null;
 
+  const mabar = toListing(listing.data);
+  // Organizer first, then by join time.
+  const ordered = [...participants.data].sort(
+    (a, b) => Number(b.user_id === mabar.organizerId) - Number(a.user_id === mabar.organizerId),
+  );
   return {
-    ...toListing(listing.data),
-    participants: participants.data.map((p) => ({
+    ...mabar,
+    participants: ordered.map((p) => ({
       userId: p.user_id,
       displayName: p.profiles?.display_name ?? "Player",
       photoUrl: p.profiles?.photo_url ?? null,

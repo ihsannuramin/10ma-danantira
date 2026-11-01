@@ -23,7 +23,9 @@ npx vitest run src/domain/mabar/mabar.test.ts   # one file
 npx vitest run -t "join_mabar"                  # by test name
 npm run test:e2e       # playwright (builds + starts on :3200; core-loop tests skip without Supabase env)
 npm run db:push        # apply supabase/migrations to the linked cloud project
-npm run db:types       # regenerate src/lib/supabase/database.types.ts (not generated yet; clients are untyped)
+npm run db:types       # regenerate src/lib/supabase/database.types.ts (generated, but clients are still untyped)
+npm run db:seed -- --join you@email.com   # dev data: 10 players, live rotation sessions, pending/rejected results, history
+npm run db:seed -- --reset                # remove seed data and undo the joiner's seed rating changes
 ```
 
 `supabase/tests/*.db.test.ts` run every migration on **PGlite** (real Postgres in WASM, no Docker). `supabase/tests/harness.ts` stubs the Supabase roles (`anon`, `authenticated`, `service_role`), `auth.uid()` (read from `request.jwt.claim.sub`), and the default grants. Use `as(db, role, userId, fn)` to run SQL as an API caller. PGlite is a single connection, so true concurrency (two players racing for the last slot) can only be tested against the cloud project.
@@ -35,11 +37,12 @@ src/domain/     pure TS business rules, no I/O, unit-tested
   rating/       NTRP-like 1.0–7.0 scale, level derived from rating, initialRatingFromAssessment
   mabar/        constants, getEffectiveStatus, canJoin, WIB scheduling, createMabarSchema (zod)
   player/       profile option enums and labels, profile/onboarding schemas
+  match/        scoring presets + validateScore (single source of score rules), rotation suggestion
   share/        WhatsApp share text + wa.me link
-src/data/       server-only data access ("server-only"): auth.ts (getUserId, requirePlayer), mabar.ts, reference.ts
+src/data/       server-only data access ("server-only"): auth.ts (getUserId, requirePlayer), mabar.ts, match.ts, reference.ts
 src/actions/    server actions; return ActionResult and re-verify the session every time
 src/lib/        supabase clients, errors.ts (code → Indonesian copy), format.ts (WIB date/time, Rupiah), routes.ts
-src/components/ ui/ (primitives), layout/, mabar/, player/, rating/, auth/
+src/components/ ui/ (primitives), layout/, mabar/, match/, stats/, player/, rating/, auth/
 src/app/        (public) landing/login/register · (onboarding) · (app) shell with bottom nav/sidebar · auth/callback
 supabase/migrations/   schema, RLS, RPCs, seed areas/venues
 ```
@@ -48,19 +51,27 @@ supabase/migrations/   schema, RLS, RPCs, seed areas/venues
 - Every mabar write (`create_mabar`, `join_mabar`, `leave_mabar`, `cancel_mabar`) is a `security definer` SQL function using `auth.uid()`. Tables have no client write policies.
 - `join_mabar` locks the mabar row (`FOR UPDATE`) so the last slot goes to exactly one player.
 - Functions signal failure with `raise exception '<CODE>'`. `src/lib/errors.ts` maps the code to user copy, and unknown errors become a generic message (never raw DB text).
-- Ratings are written only by the server with `SUPABASE_SECRET_KEY` (`createAdminClient`). Onboarding computes the rating in TS, then calls `complete_onboarding`, which only `service_role` may execute. Clients can read `player_ratings` but never write to it.
+- Onboarding computes the initial rating in TS, then calls `complete_onboarding`, which only `service_role` may execute. Clients can read `player_ratings` but never write to it.
+- **Match flow:** `start_match` (organizer) → `save_match_draft` / `submit_match_result` → `confirm_match_result` or `reject_match_result` (any player in the match except the submitter) → rating.
+  - Score rules live in TS (`validateScore`). `submitMatchResult` runs it, then calls `submit_match_result` with the **service role**; that RPC and `save_match_draft` are not executable by players, so validation can't be skipped.
+  - **Match rating updates are computed in SQL** (`rating_delta`, `apply_match_rating`), atomically with confirmation and from the pg_cron job `tenma-finalize-results` (every 10 min, `finalize_due_results()`), which auto-confirms results 24h after submit. `ratingChange` in `rating.service.ts` mirrors the formula; `supabase/tests/match.db.test.ts` checks parity.
+  - `rating_changes` has PK `(match_id, user_id)`, so a result can never be applied twice. Casual results are official on submit and never touch ratings.
+  - Rejected results keep the match in `PENDING_CONFIRMATION`; the organizer resubmits (version++, deadline resets). One `LIVE` match per session (partial unique index).
 - `profiles` are updated by their owner through RLS.
 
 **Rules duplicated between TS and SQL. Change both together:**
 - `getEffectiveStatus` ↔ `mabar_effective_status()`
 - `canJoin` check order ↔ `join_mabar`
 - `TIME_SLOTS` hours ↔ `search_mabars`
+- `ratingChange` / rating constants ↔ `rating_delta()` + `apply_match_rating()` (parity test)
+- `MIN_PLAYERS` ↔ `mabar_min_players()`
 
 **Status model:**
 - Only `OPEN`, `CANCELLED` and `COMPLETED` are stored.
-- Before start, a mabar is FULL if every slot is taken, otherwise OPEN.
-- After start, it is LIVE if it was full, otherwise EXPIRED.
-- UPCOMING is reserved for the match lifecycle (iteration 2).
+- A mabar is a **session** of 2–8 players on one court (Singles 2–8, Doubles 4–8); players rotate through matches.
+- Before start, a mabar is FULL if `participant_count >= max_players`, otherwise OPEN.
+- After start, it is LIVE if it has enough players for one match (`MIN_PLAYERS`: 2 / 4), otherwise EXPIRED. It stays LIVE until the organizer ends it (`end_mabar`) or the job closes it 24h after `ends_at`.
+- Matches: `LIVE` → `PENDING_CONFIRMATION` → `COMPLETED`, or `CANCELLED`. Results: `PENDING` / `REJECTED` / `CONFIRMED` / `AUTO_CONFIRMED`. Only `COMPLETED` matches appear in `player_match_history`.
 - The UI badge "Joinable" means OPEN *and* the viewer's rating is inside the range; "Open" means OPEN but outside it (`statusBadge`).
 
 **Data and pagination:**
@@ -73,8 +84,10 @@ supabase/migrations/   schema, RLS, RPCs, seed areas/venues
 - **Join eligibility:** the rating must be inside the mabar's level range (inclusive, no tolerance).
 - **UI language:** follow the showcase. Tennis and action terms stay English ("Join", "Find Mabar", "Submit Result"); sentences, help text and errors are casual Indonesian. Code is English.
 - **Location:** `areas` + `venues` tables. Players can add venues; coordinates are empty for now.
-- **Result confirmation (iteration 2):** only the organizer submits, one player from the opposing team confirms, then the result is official and the rating updates.
-- **Iteration 1 scope:** foundation, auth, profile + assessment, create/find/detail/join/leave/cancel mabar, WhatsApp share, Home, Matches. Stats and Community are placeholders. **Next up:** match, score, result confirmation, rating update, history, stats. P1 items (matchmaking/"Recommended", community, notifications, team balancing) come after that.
+- **Scoring presets** (organizer picks per mabar, from research on Indonesian mabar listings, PELTI/PTWP tournaments and ITF/ATP formats): `FAST4` (first to 4, TB at 3-3), `ONE_SET` (TB 6-6), `PRO_SET` (8 games, TB 8-8), `BEST_OF_3`, `BEST_OF_3_MTB` (10-point match tie-break at 1-1). Deuce rule (`ADVANTAGE`/`NO_AD`/`ONE_DEUCE`) is informational only.
+- **Results:** only the organizer submits. Competitive results need confirmation by any player in that match other than the submitter; unconfirmed results become official after 24h; a rejected result is fixed and resubmitted by the organizer. Casual results are official at once and don't change ratings.
+- **Rating formula:** `E = 1/(1+10^((R_opp − R_team)/1.0))`, `K = 0.05 + 0.30 × (1 − reliability/100)`, `Δ = round(K × (S − E), 2)`, clamped to 1.00–7.00; doubles use the team average; reliability +5 per counted match, max 95.
+- **Done:** iteration 1 (auth, onboarding, mabar create/find/join/share) and iteration 2 (rotation sessions, live scoring, confirmation, ratings, history, stats). **Not yet:** notifications, smart matchmaking/"Recommended", community, leaderboard, rating-balanced teams, result disputes, multi-court.
 
 ## Source of truth
 

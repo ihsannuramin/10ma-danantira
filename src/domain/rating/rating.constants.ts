@@ -6,6 +6,13 @@ export const RATING_MAX = 7.0;
 // Reliability is a 0–100 confidence score. A fresh assessment is a guess.
 export const INITIAL_RELIABILITY = 20;
 
+// Match updates (see ratingChange). Keep in sync with public.rating_delta.
+export const RATING_EXPECTATION_SCALE = 1.0;
+export const K_MIN = 0.05;
+export const K_RANGE = 0.3;
+export const RELIABILITY_STEP = 5;
+export const RELIABILITY_MAX = 95;
+
 // Assessment-only ratings are capped below Competitive; that level has to be
 // earned through confirmed competitive results.
 export const ASSESSMENT_RATING_MIN = 1.5;

@@ -18,6 +18,7 @@ export type JoinErrorCode = (typeof JOIN_ERROR_CODES)[number];
 
 export type MabarStatusInput = {
   status: StoredMabarStatus;
+  format: MabarFormat;
   startsAt: Date;
   participantCount: number;
   maxPlayers: number;

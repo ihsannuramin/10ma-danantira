@@ -13,6 +13,10 @@ import { Card, Skeleton } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/state";
 import { requirePlayer } from "@/data/auth";
 import { getMabarDetail } from "@/data/mabar";
+import { getSessionMatches } from "@/data/match";
+import { MatchList } from "@/components/match/match-list";
+import { SessionActions } from "@/components/match/session-actions";
+import { DEUCE_RULE_LABEL, SCORING_FORMAT_INFO } from "@/domain/match/match.constants";
 import { FORMAT_LABEL, MATCH_TYPE_LABEL } from "@/domain/mabar/mabar.constants";
 import { canJoin } from "@/domain/mabar/mabar.service";
 import { formatRating } from "@/domain/rating/rating.service";
@@ -33,7 +37,7 @@ export default function MabarDetailPage({ params }: PageProps<"/mabar/[id]">) {
 
 async function Detail({ params }: { params: PageProps<"/mabar/[id]">["params"] }) {
   const { id } = await params;
-  const [player, mabar] = await Promise.all([requirePlayer(`/mabar/${id}`), getMabarDetail(id)]);
+  const [player, mabar, matches] = await Promise.all([requirePlayer(`/mabar/${id}`), getMabarDetail(id), getSessionMatches(id)]);
 
   if (!mabar) {
     return (
@@ -52,6 +56,7 @@ async function Detail({ params }: { params: PageProps<"/mabar/[id]">["params"] }
 
   const isParticipant = mabar.participants.some((p) => p.userId === player.id);
   const isOrganizer = mabar.organizerId === player.id;
+  const isLive = mabar.effectiveStatus === "LIVE";
   const check = canJoin({
     hasProfile: true,
     playerRating: player.rating,
@@ -90,6 +95,8 @@ async function Detail({ params }: { params: PageProps<"/mabar/[id]">["params"] }
           <Badge tone="neutral">Level: {formatLevelRange(mabar.levelMin, mabar.levelMax)}</Badge>
           <Badge tone="neutral">{FORMAT_LABEL[mabar.format]}</Badge>
           <Badge tone={mabar.matchType === "COMPETITIVE" ? "dark" : "neutral"}>{MATCH_TYPE_LABEL[mabar.matchType]}</Badge>
+          <Badge tone="neutral">{SCORING_FORMAT_INFO[mabar.scoringFormat].label}</Badge>
+          <Badge tone="neutral">{DEUCE_RULE_LABEL[mabar.deuceRule]}</Badge>
           <Badge tone="lime">
             {mabar.costPerPlayer !== null ? `${formatRupiah(mabar.costPerPlayer)} / player` : "Biaya belum ditentukan"}
           </Badge>
@@ -139,6 +146,37 @@ async function Detail({ params }: { params: PageProps<"/mabar/[id]">["params"] }
           )}
         </ul>
       </section>
+
+      {(isLive || matches.length > 0) && (
+        <section aria-labelledby="matches-heading" className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <h3 id="matches-heading" className="text-h3">
+              Matches
+            </h3>
+            <p className="text-body-sm text-muted">{matches.filter((m) => m.status !== "CANCELLED").length} match</p>
+          </div>
+          {isOrganizer && isLive && (
+            <SessionActions
+              mabarId={mabar.id}
+              format={mabar.format}
+              liveMatchId={matches.find((m) => m.status === "LIVE")?.id ?? null}
+              players={mabar.participants.map((p) => ({
+                userId: p.userId,
+                name: p.displayName,
+                photoUrl: p.photoUrl,
+                played: matches.filter((m) => m.status !== "CANCELLED" && m.playerIds.includes(p.userId)).length,
+              }))}
+            />
+          )}
+          {matches.length > 0 ? (
+            <MatchList matches={matches} mabarId={mabar.id} viewerId={player.id} />
+          ) : (
+            <p className="rounded-lg border border-dashed border-line bg-white px-4 py-6 text-center text-body-sm text-muted">
+              {isOrganizer ? "Belum ada match. Tap Mulai Match untuk pilih pemain." : "Belum ada match. Organizer akan memulai match pertama."}
+            </p>
+          )}
+        </section>
+      )}
 
       <JoinPanel
         mabarId={mabar.id}

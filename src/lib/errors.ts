@@ -46,6 +46,32 @@ const COPY: Record<string, Omit<UserError, "code">> = {
     title: "Venue itu sudah ada.",
     description: "Pilih venue tersebut dari daftar lokasi.",
   },
+  MABAR_NOT_LIVE: {
+    title: "Mabar belum atau sudah tidak berlangsung.",
+    description: "Match hanya bisa dimulai saat mabar sedang LIVE dengan pemain yang cukup.",
+  },
+  MATCH_IN_PROGRESS: {
+    title: "Masih ada match yang sedang dimainkan.",
+    description: "Submit atau batalkan match itu dulu, baru mulai match berikutnya.",
+  },
+  TEAM_SIZE_INVALID: { title: "Jumlah pemain per tim belum pas.", description: "Singles 1 lawan 1, Doubles 2 lawan 2." },
+  DUPLICATE_PLAYER: { title: "Ada pemain yang dipilih dua kali.", description: "Setiap pemain hanya boleh di satu tim." },
+  PLAYER_NOT_IN_MABAR: { title: "Ada pemain yang bukan peserta mabar ini.", description: "Pilih pemain dari daftar peserta." },
+  MATCH_NOT_FOUND: { title: "Match tidak ditemukan.", description: "Mungkin sudah dibatalkan organizer." },
+  MATCH_ALREADY_FINAL: {
+    title: "Hasil match ini sudah official.",
+    description: "Skor yang sudah official tidak bisa diubah lagi.",
+  },
+  RESULT_NOT_PENDING: {
+    title: "Hasil ini tidak sedang menunggu konfirmasi.",
+    description: "Mungkin sudah dikonfirmasi pemain lain atau sedang diperbaiki organizer.",
+  },
+  NOT_MATCH_PLAYER: { title: "Kamu tidak main di match ini.", description: "Hanya pemain di match yang bisa konfirmasi hasil." },
+  CANNOT_CONFIRM_OWN: {
+    title: "Kamu yang mengirim skor ini.",
+    description: "Hasil harus dikonfirmasi pemain lain di match supaya adil.",
+  },
+  INVALID_SCORE: { title: "Skornya belum sah.", description: "Cek lagi set yang ditandai merah." },
   VALIDATION: { title: "Ada isian yang belum pas.", description: "Cek lagi bagian yang ditandai merah." },
   UNKNOWN: { title: "Ada yang salah di sisi kami.", description: "Coba lagi sebentar lagi." },
 };

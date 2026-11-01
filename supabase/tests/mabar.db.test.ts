@@ -29,7 +29,7 @@ async function createMabar(
   const startsIn = opts.startsInHours ?? 24;
   const { rows } = await as(db, "authenticated", organizerId, (tx) =>
     tx.query<{ id: string }>(
-      `select public.create_mabar($1, $2, 'CASUAL', $3, $4, $5, $6, $7, 75000, null) as id`,
+      `select public.create_mabar($1, $2, 'CASUAL', $3, $4, $5, $6, $7, 75000, null, null, null, null) as id`,
       [
         opts.title ?? null,
         opts.format ?? "DOUBLES",

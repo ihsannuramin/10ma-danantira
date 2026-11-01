@@ -12,7 +12,8 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "db:push": "supabase db push",
-    "db:types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts"
+    "db:types": "supabase gen types typescript --linked > src/lib/supabase/database.types.ts",
+    "db:seed": "node scripts/seed-dev.mts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

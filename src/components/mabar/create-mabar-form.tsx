@@ -14,12 +14,23 @@ import {
   DESCRIPTION_MAX,
   FORMAT_LABEL,
   MATCH_TYPE_LABEL,
-  MAX_PLAYERS,
+  MAX_SESSION_PLAYERS,
+  MIN_PLAYERS,
   TITLE_MAX,
 } from "@/domain/mabar/mabar.constants";
 import type { MabarFormat } from "@/domain/mabar/mabar.types";
+import {
+  DEFAULT_DEUCE_RULE,
+  DEFAULT_SCORING_FORMAT,
+  DEUCE_RULES,
+  SCORING_FORMATS,
+  SCORING_FORMAT_INFO,
+} from "@/domain/match/match.constants";
 import { IDLE, type ActionState } from "@/lib/errors";
 import { LevelRangeSlider } from "./level-range-slider";
+import { PlayerCountStepper } from "./player-count-stepper";
+
+const DEUCE_SHORT_LABEL = { ADVANTAGE: "Advantage", NO_AD: "No-Ad", ONE_DEUCE: "1x Deuce" } as const;
 
 const NEW_VENUE = "__new";
 
@@ -40,6 +51,7 @@ export function CreateMabarForm({
   const toast = useToast();
   const [state, onSubmit, pending] = useFormAction<ActionState<{ id: string }>>(createMabar, IDLE);
   const [format, setFormat] = useState<MabarFormat>("DOUBLES");
+  const [players, setPlayers] = useState<number>(MIN_PLAYERS.DOUBLES);
   const [venueId, setVenueId] = useState("");
   const errors = state.ok === false ? (state.fieldErrors ?? {}) : {};
 
@@ -61,12 +73,22 @@ export function CreateMabarForm({
         name="format"
         legend="Format"
         value={format}
-        onChange={(v) => setFormat(v as MabarFormat)}
-        options={(Object.keys(FORMAT_LABEL) as MabarFormat[]).map((f) => ({
-          value: f,
-          label: `${FORMAT_LABEL[f]} · ${MAX_PLAYERS[f]} player`,
-        }))}
+        onChange={(v) => {
+          const next = v as MabarFormat;
+          setFormat(next);
+          // Keep the session size valid for the new format.
+          setPlayers((n) => Math.max(n, MIN_PLAYERS[next]));
+        }}
+        options={(Object.keys(FORMAT_LABEL) as MabarFormat[]).map((f) => ({ value: f, label: FORMAT_LABEL[f] }))}
         error={errors.format}
+      />
+
+      <PlayerCountStepper
+        value={players}
+        min={MIN_PLAYERS[format]}
+        max={MAX_SESSION_PLAYERS}
+        onStep={(d) => setPlayers((n) => Math.min(MAX_SESSION_PLAYERS, Math.max(MIN_PLAYERS[format], n + d)))}
+        error={errors.maxPlayers}
       />
 
       <fieldset className="flex flex-col gap-3">
@@ -145,6 +167,27 @@ export function CreateMabarForm({
         error={errors.matchType}
       />
       <p className="-mt-4 text-caption text-muted">Hanya hasil match Competitive yang mengubah rating.</p>
+
+      <SegmentedControl
+        name="scoringFormat"
+        legend="Format skor"
+        layout="cards"
+        defaultValue={DEFAULT_SCORING_FORMAT}
+        options={SCORING_FORMATS.map((f) => ({
+          value: f,
+          label: SCORING_FORMAT_INFO[f].label,
+          description: SCORING_FORMAT_INFO[f].description,
+        }))}
+        error={errors.scoringFormat}
+      />
+
+      <SegmentedControl
+        name="deuceRule"
+        legend="Aturan deuce"
+        defaultValue={DEFAULT_DEUCE_RULE}
+        options={DEUCE_RULES.map((r) => ({ value: r, label: DEUCE_SHORT_LABEL[r] }))}
+        error={errors.deuceRule}
+      />
 
       <Field id="cost" label="Biaya per player" optional error={errors.cost}>
         <div className="relative">

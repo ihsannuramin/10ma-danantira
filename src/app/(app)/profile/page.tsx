@@ -9,6 +9,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { Card, Skeleton } from "@/components/ui/card";
 import { requirePlayer } from "@/data/auth";
+import { getPlayerStats } from "@/data/match";
 import {
   AVAILABILITY_LABEL,
   DOMINANT_HAND_LABEL,
@@ -37,6 +38,7 @@ export default function ProfilePage() {
 
 async function Profile() {
   const player = await requirePlayer();
+  const stats = await getPlayerStats(player.id);
   const rows = [
     { icon: Target, label: "Level", value: levelLabel(player.level) },
     { icon: Swords, label: "Play Style", value: PLAYING_STYLE_LABEL[player.playingStyle] },
@@ -63,7 +65,7 @@ async function Profile() {
         </div>
       </header>
 
-      <RatingCard player={player} />
+      <RatingCard player={player} stats={stats} />
 
       <Card className="p-5">
         <div className="mb-3 flex items-center justify-between">

@@ -8,7 +8,7 @@ const NOW = new Date("2025-11-05T03:00:00Z"); // Wed 5 Nov 2025, 10:00 WIB
 const LATER = new Date("2025-11-08T00:00:00Z"); // Sat 07:00 WIB
 
 describe("getEffectiveStatus", () => {
-  const base = { status: "OPEN" as const, startsAt: LATER, participantCount: 3, maxPlayers: 4 };
+  const base = { status: "OPEN" as const, format: "DOUBLES" as const, startsAt: LATER, participantCount: 3, maxPlayers: 4 };
 
   it("is OPEN before start with free slots", () => {
     expect(getEffectiveStatus(base, NOW)).toBe("OPEN");
@@ -22,6 +22,13 @@ describe("getEffectiveStatus", () => {
   it("is EXPIRED once a mabar starts short of players", () => {
     expect(getEffectiveStatus(base, LATER)).toBe("EXPIRED");
   });
+  it("is LIVE for a rotation session with enough players for one match, even with free slots", () => {
+    expect(getEffectiveStatus({ ...base, maxPlayers: 8, participantCount: 5 }, LATER)).toBe("LIVE");
+    expect(getEffectiveStatus({ ...base, maxPlayers: 8, participantCount: 5 }, NOW)).toBe("OPEN");
+  });
+  it("needs only two players for a singles session to go LIVE", () => {
+    expect(getEffectiveStatus({ ...base, format: "SINGLES", maxPlayers: 6, participantCount: 2 }, LATER)).toBe("LIVE");
+  });
   it("keeps stored terminal states regardless of time", () => {
     expect(getEffectiveStatus({ ...base, status: "CANCELLED" }, LATER)).toBe("CANCELLED");
     expect(getEffectiveStatus({ ...base, status: "COMPLETED" }, NOW)).toBe("COMPLETED");
@@ -34,6 +41,7 @@ describe("canJoin", () => {
     playerRating: 3.0,
     mabar: {
       status: "OPEN",
+      format: "DOUBLES",
       startsAt: LATER,
       participantCount: 3,
       maxPlayers: 4,
@@ -109,6 +117,9 @@ describe("createMabarSchema", () => {
     title: "",
     format: "DOUBLES",
     matchType: "CASUAL",
+    maxPlayers: "6",
+    scoringFormat: "FAST4",
+    deuceRule: "NO_AD",
     date: "2025-11-08",
     startTime: "07:00",
     endTime: "09:00",
@@ -156,5 +167,11 @@ describe("createMabarSchema", () => {
   });
   it("rejects unknown enum values", () => {
     expect(errorPaths({ format: "TRIPLES" })).toContain("format");
+    expect(errorPaths({ scoringFormat: "BEST_OF_5" })).toContain("scoringFormat");
+  });
+  it("keeps the session size between the match minimum and 8", () => {
+    expect(errorPaths({ maxPlayers: "3" })).toContain("maxPlayers");
+    expect(errorPaths({ format: "SINGLES", maxPlayers: "3" })).not.toContain("maxPlayers");
+    expect(errorPaths({ maxPlayers: "9" })).toContain("maxPlayers");
   });
 });
